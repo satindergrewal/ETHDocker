@@ -1,0 +1,43 @@
+# VPN overlay — adds WireGuard to hide your IP from peers
+# Usage: docker compose -f docker-compose.yml -f docker-compose.vpn.yml up -d
+#
+# SETUP: Place your WireGuard config file at vpn/wg0.conf
+#
+# All P2P traffic → VPN SOCKS proxy (1080) → WireGuard → Internet
+# Your ISP sees only VPN traffic. Peers see the VPN exit IP.
+
+services:
+  vpn:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: eth-vpn
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - IPTABLES_BACKEND=legacy
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.all.disable_ipv6=1
+    volumes:
+      - ./vpn:/config/wg_confs
+    networks:
+      ethnet:
+        ipv4_address: 172.29.0.20
+    healthcheck:
+      test: ["CMD-SHELL", "ip link show wg0 up > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # SOCKS proxy through VPN — at 172.29.0.20:1080
+  # Clearnet traffic routes through this
+  vpn-proxy:
+    build: ./vpn-proxy
+    container_name: eth-vpn-proxy
+    restart: unless-stopped
+    network_mode: "service:vpn"
+    depends_on:
+      vpn:
+        condition: service_healthy

@@ -1,0 +1,22 @@
+.DS_Store
+
+# Chain data (1TB+)
+data/
+
+# Config files (may contain custom settings)
+geth.toml
+lighthouse.yml
+
+# JWT secret (shared auth between Geth and Lighthouse)
+jwt-secret
+
+# VPN config (contains private keys)
+vpn/*.conf
+
+# Environment (contains machine-specific paths)
+.env
+
+# Mode state flags
+.vpn-mode
+.validator-mode
+.explorer-mode

@@ -1,0 +1,30 @@
+# ============================================================================
+# Lighthouse Beacon Node Configuration
+# ============================================================================
+#
+# NOTE: Most Lighthouse config is passed via CLI flags in docker-compose.yml.
+# This file documents the key settings for reference.
+#
+# CLI flags in docker-compose.yml:
+#   --network=mainnet
+#   --execution-endpoint=http://geth:8551
+#   --execution-jwt=/etc/lighthouse/jwt-secret
+#   --checkpoint-sync-url=https://mainnet.checkpoint.sigp.io
+#   --http --http-address=0.0.0.0 --http-port=5052
+#   --disable-upnp
+#
+# CHECKPOINT SYNC:
+#   Lighthouse syncs from a recent finalized state (minutes, not days).
+#   After checkpoint sync, it backfills historical blocks in the background.
+#   Public checkpoint sync endpoints:
+#     - https://mainnet.checkpoint.sigp.io (Sigma Prime — Lighthouse authors)
+#     - https://beaconstate.info
+#     - https://sync-mainnet.beaconcha.in
+#
+# MONITORING:
+#   Beacon API: http://127.0.0.1:5052
+#   Sync status: curl http://127.0.0.1:5052/eth/v1/node/syncing
+#   Peers: curl http://127.0.0.1:5052/eth/v1/node/peers
+#   Finality: curl http://127.0.0.1:5052/eth/v1/beacon/states/head/finality_checkpoints
+#
+# ============================================================================

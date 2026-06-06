@@ -1,0 +1,39 @@
+# ============================================================================
+# Geth Configuration Reference
+# ============================================================================
+#
+# All Geth config is passed via CLI flags in docker-compose.yml.
+# This file documents the settings for reference. No need to copy it.
+#
+# SETUP:
+#   1. Generate JWT secret: openssl rand -hex 32 > jwt-secret
+#   2. Start: ./eth.sh up
+#   3. Add to Metamask: http://127.0.0.1:8545, Chain ID 1
+#
+# AFTER INITIAL SYNC:
+#   Edit docker-compose.yml and change --cache=4096 to --cache=1024
+#   to free RAM for Lighthouse. Then: docker compose restart geth
+#
+# CURRENT CLI FLAGS (from docker-compose.yml):
+#   --datadir=/data/geth
+#   --syncmode=snap
+#   --http --http.addr=0.0.0.0 --http.port=8545
+#   --http.api=eth,net,web3,txpool
+#   --ws --ws.addr=0.0.0.0 --ws.port=8546
+#   --ws.api=eth,net,web3
+#   --authrpc.jwtsecret=/etc/geth/jwt-secret
+#   --authrpc.addr=0.0.0.0 --authrpc.vhosts=*
+#   --maxpeers=50
+#   --cache=4096
+#
+# SECURITY:
+#   - RPC bound to 0.0.0.0 inside container, exposed as 127.0.0.1 on host
+#   - Engine API (8551) only accessible from Lighthouse via Docker network
+#   - JWT auth required for Engine API
+#
+# SYNC:
+#   - Snap sync is default (~800GB, fastest)
+#   - Full archive: change to --syncmode=full --gcmode=archive (~2TB+)
+#   - Monitor: ./eth.sh block
+#
+# ============================================================================

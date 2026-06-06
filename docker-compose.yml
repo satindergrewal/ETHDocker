@@ -1,0 +1,142 @@
+services:
+  geth:
+    build: ./geth
+    container_name: eth-geth
+    restart: unless-stopped
+    volumes:
+      - ${GETH_DATA_DIR:-./data/geth}:/data/geth
+      - ./jwt-secret:/etc/geth/jwt-secret:ro
+    command:
+      - "--datadir=/data/geth"
+      - "--syncmode=${GETH_SYNCMODE:-snap}"
+      - "--gcmode=${GETH_GCMODE:-full}"
+      - "--http"
+      - "--http.addr=0.0.0.0"
+      - "--http.port=8545"
+      - "--http.api=${GETH_HTTP_API:-eth,net,web3,txpool}"
+      - "--http.vhosts=*"
+      - "--ws"
+      - "--ws.addr=0.0.0.0"
+      - "--ws.port=8546"
+      - "--ws.api=eth,net,web3"
+      - "--authrpc.jwtsecret=/etc/geth/jwt-secret"
+      - "--authrpc.addr=0.0.0.0"
+      - "--authrpc.vhosts=*"
+      - "--maxpeers=${GETH_MAXPEERS:-50}"
+      - "--cache=${GETH_CACHE:-4096}"
+    ports:
+      # JSON-RPC for Metamask — localhost only
+      - "127.0.0.1:8545:8545"
+      # WebSocket RPC — localhost only
+      - "127.0.0.1:8546:8546"
+    networks:
+      - ethnet
+
+  lighthouse:
+    build: ./lighthouse
+    container_name: eth-lighthouse
+    restart: unless-stopped
+    depends_on:
+      - geth
+    volumes:
+      - ${LIGHTHOUSE_DATA_DIR:-./data/lighthouse}:/data/lighthouse
+      - ./jwt-secret:/etc/lighthouse/jwt-secret:ro
+    command:
+      - "bn"
+      - "--datadir=/data/lighthouse"
+      - "--network=mainnet"
+      - "--execution-endpoint=http://geth:8551"
+      - "--execution-jwt=/etc/lighthouse/jwt-secret"
+      - "--checkpoint-sync-url=https://mainnet.checkpoint.sigp.io"
+      - "--http"
+      - "--http-address=0.0.0.0"
+      - "--http-port=5052"
+      - "--disable-upnp"
+    ports:
+      # Beacon API — localhost only
+      - "127.0.0.1:5052:5052"
+    networks:
+      - ethnet
+
+  # Validator client — only starts with: ./eth.sh validator on
+  validator:
+    build: ./lighthouse
+    container_name: eth-validator
+    restart: unless-stopped
+    profiles:
+      - validator
+    depends_on:
+      - lighthouse
+    volumes:
+      - ${VALIDATOR_DATA_DIR:-./data/validator}:/data/validator
+    command:
+      - "vc"
+      - "--datadir=/data/validator"
+      - "--network=mainnet"
+      - "--beacon-nodes=http://lighthouse:5052"
+      - "--suggested-fee-recipient=0x0000000000000000000000000000000000000000"
+    networks:
+      - ethnet
+
+  # Blockscout explorer — only starts with: ./eth.sh explorer on
+  explorer-db:
+    image: postgres:17
+    container_name: eth-explorer-db
+    restart: unless-stopped
+    profiles:
+      - explorer
+    environment:
+      POSTGRES_DB: blockscout
+      POSTGRES_USER: blockscout
+      POSTGRES_PASSWORD: blockscout
+    volumes:
+      - ${EXPLORER_DB_DIR:-./data/explorer-db}:/var/lib/postgresql/data
+    networks:
+      - ethnet
+
+  explorer-redis:
+    image: redis:alpine
+    container_name: eth-explorer-redis
+    restart: unless-stopped
+    profiles:
+      - explorer
+    networks:
+      - ethnet
+
+  explorer:
+    image: blockscout/blockscout:latest
+    container_name: eth-explorer
+    restart: unless-stopped
+    profiles:
+      - explorer
+    depends_on:
+      - explorer-db
+      - explorer-redis
+      - geth
+    environment:
+      DATABASE_URL: postgresql://blockscout:blockscout@explorer-db:5432/blockscout
+      ETHEREUM_JSONRPC_VARIANT: geth
+      ETHEREUM_JSONRPC_HTTP_URL: http://geth:8545
+      ETHEREUM_JSONRPC_WS_URL: ws://geth:8546
+      ETHEREUM_JSONRPC_TRACE_URL: http://geth:8545
+      CHAIN_ID: "1"
+      NETWORK: Ethereum
+      SUBNETWORK: Mainnet
+      SECRET_KEY_BASE: "generated_secret_key_base_at_least_64_chars_long_replace_me_with_real_value"
+      PORT: "4000"
+      COIN: ETH
+      DISABLE_EXCHANGE_RATES: "true"
+      INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
+      ECTO_USE_SSL: "false"
+      CACHE_ADDRESS_WITH_BALANCES_UPDATE_INTERVAL: ""
+    ports:
+      - "127.0.0.1:4000:4000"
+    networks:
+      - ethnet
+
+networks:
+  ethnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
