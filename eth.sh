@@ -191,17 +191,35 @@ elif syncing:
                     found_eta = True
                     break
             if not found_eta:
-                # Archive sync — estimate from block import rate
-                # Find two "Imported new chain segment" lines to calc rate
+                # Archive sync — estimate ETA from block import rate
                 imports = []
                 for line in r.stdout.splitlines():
                     if 'Imported new chain segment' in line:
                         num = re.search(r'number=([\d,]+)', line)
-                        age = re.search(r'age=(\S+)', line)
-                        if num:
-                            imports.append((int(num.group(1).replace(',','')), age.group(1) if age else ''))
-                if len(imports) >= 2 and imports[-1][1]:
-                    print('  Age: '+imports[-1][1])
+                        ts = re.search(r'\[([^\]]+)\]', line)
+                        if num and ts:
+                            imports.append((int(num.group(1).replace(',','')), ts.group(1)))
+                if len(imports) >= 2:
+                    from datetime import datetime
+                    try:
+                        t0 = datetime.strptime(imports[0][1], '%m-%d|%H:%M:%S.%f')
+                        t1 = datetime.strptime(imports[-1][1], '%m-%d|%H:%M:%S.%f')
+                        secs = (t1 - t0).total_seconds()
+                        blocks_done = imports[-1][0] - imports[0][0]
+                        if secs > 0 and blocks_done > 0:
+                            rate = blocks_done / secs
+                            remaining = highest - current
+                            eta_secs = int(remaining / rate)
+                            eta_h, rem = divmod(eta_secs, 3600)
+                            eta_m, _ = divmod(rem, 60)
+                            if eta_h >= 24:
+                                eta_d = eta_h // 24
+                                eta_h = eta_h % 24
+                                print('  ETA: {}d {}h {}m  ({:.0f} blocks/sec)'.format(eta_d, eta_h, eta_m, rate))
+                            else:
+                                print('  ETA: {}h {}m  ({:.0f} blocks/sec)'.format(eta_h, eta_m, rate))
+                    except:
+                        pass
             for line in reversed(r.stdout.splitlines()):
                 if 'state download in progress' in line:
                     st_pct = re.search(r'synced=([\d.]+%)', line)
