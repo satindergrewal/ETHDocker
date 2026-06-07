@@ -152,6 +152,13 @@ elif syncing:
                     if st_pct and eta:
                         print('  State: {}  ETA: {}'.format(st_pct.group(1), eta.group(1)))
                     break
+                elif 'state healing in progress' in line:
+                    pending = re.search(r'pending=(\d+)', line)
+                    if pending:
+                        print('  State: healing ({:,} pending)'.format(int(pending.group(1))))
+                    else:
+                        print('  State: healing')
+                    break
         except:
             pass
     elif accounts > 0 or storage > 0:
