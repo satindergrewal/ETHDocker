@@ -135,7 +135,44 @@ elif syncing:
         print('  Block: {:,}'.format(current))
         print('  Sync: 100%')
         if tx_remaining > 0:
-            print('  TX index: {:,} blocks remaining'.format(tx_remaining))
+            # Get TX index rate from logs
+            try:
+                r = subprocess.run(['docker','compose','logs','--tail','10','geth'],
+                    capture_output=True, text=True, timeout=10)
+                import re
+                for line in reversed(r.stdout.splitlines()):
+                    if 'Indexing transactions' in line:
+                        done = re.search(r'blocks=([\d,]+)', line)
+                        elapsed = re.search(r'elapsed=(\S+)', line)
+                        if done and elapsed:
+                            done_n = int(done.group(1).replace(',',''))
+                            el_str = elapsed.group(1)
+                            # Parse elapsed like "16m35.528s" or "1h2m3s"
+                            secs = 0
+                            hm = re.findall(r'(\d+\.?\d*)([hms])', el_str)
+                            for val, unit in hm:
+                                if unit == 'h': secs += float(val) * 3600
+                                elif unit == 'm': secs += float(val) * 60
+                                elif unit == 's': secs += float(val)
+                            if done_n > 0 and secs > 0:
+                                rate = done_n / secs
+                                eta_secs = int(tx_remaining / rate)
+                                eta_m, eta_s = divmod(eta_secs, 60)
+                                eta_h, eta_m = divmod(eta_m, 60)
+                                if eta_h > 0:
+                                    eta_str = '{}h{}m'.format(eta_h, eta_m)
+                                else:
+                                    eta_str = '{}m{}s'.format(eta_m, eta_s)
+                                print('  TX index: {:,} blocks remaining  ETA: {}'.format(tx_remaining, eta_str))
+                            else:
+                                print('  TX index: {:,} blocks remaining'.format(tx_remaining))
+                        else:
+                            print('  TX index: {:,} blocks remaining'.format(tx_remaining))
+                        break
+                else:
+                    print('  TX index: {:,} blocks remaining'.format(tx_remaining))
+            except:
+                print('  TX index: {:,} blocks remaining'.format(tx_remaining))
     elif highest > 0:
         pct = current/highest*100
         print('  Block: {:,} / {:,}'.format(current, highest))
