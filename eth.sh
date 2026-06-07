@@ -136,8 +136,28 @@ if syncing == False:
         for line in reversed(r.stdout.splitlines()):
             if 'Log index head rendering' in line:
                 remaining = re.search(r'remaining=([\d,]+)', line)
-                if remaining:
-                    print('  Log index: {:,} blocks remaining'.format(int(remaining.group(1).replace(',',''))))
+                processed = re.search(r'processed=([\d,]+)', line)
+                elapsed = re.search(r'elapsed=(\S+)', line)
+                if remaining and processed and elapsed:
+                    rem_n = int(remaining.group(1).replace(',',''))
+                    proc_n = int(processed.group(1).replace(',',''))
+                    el_str = elapsed.group(1)
+                    secs = 0
+                    hm = re.findall(r'(\d+\.?\d*)([hms])', el_str)
+                    for val, unit in hm:
+                        if unit == 'h': secs += float(val) * 3600
+                        elif unit == 'm': secs += float(val) * 60
+                        elif unit == 's': secs += float(val)
+                    if proc_n > 0 and secs > 0:
+                        rate = proc_n / secs
+                        eta_secs = int(rem_n / rate)
+                        eta_h, r2 = divmod(eta_secs, 3600)
+                        eta_m, _ = divmod(r2, 60)
+                        print('  Log index: {:,} remaining  ETA: {}h{}m'.format(rem_n, eta_h, eta_m))
+                    else:
+                        print('  Log index: {:,} remaining'.format(rem_n))
+                elif remaining:
+                    print('  Log index: {:,} remaining'.format(int(remaining.group(1).replace(',',''))))
                 break
     except:
         pass
