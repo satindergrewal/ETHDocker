@@ -177,17 +177,31 @@ elif syncing:
         pct = current/highest*100
         print('  Block: {:,} / {:,}'.format(current, highest))
         print('  Sync: {:.2f}%'.format(pct))
-        # Get ETAs from logs (chain + state run in parallel)
+        # Get ETAs from logs (different formats for snap vs archive sync)
         try:
             r = subprocess.run(['docker','compose','logs','--tail','20','geth'],
                 capture_output=True, text=True, timeout=10)
             import re
+            found_eta = False
             for line in reversed(r.stdout.splitlines()):
                 if 'chain download in progress' in line:
                     eta = re.search(r'eta=(\S+)', line)
                     if eta:
                         print('  ETA (chain): '+eta.group(1))
+                    found_eta = True
                     break
+            if not found_eta:
+                # Archive sync — estimate from block import rate
+                # Find two "Imported new chain segment" lines to calc rate
+                imports = []
+                for line in r.stdout.splitlines():
+                    if 'Imported new chain segment' in line:
+                        num = re.search(r'number=([\d,]+)', line)
+                        age = re.search(r'age=(\S+)', line)
+                        if num:
+                            imports.append((int(num.group(1).replace(',','')), age.group(1) if age else ''))
+                if len(imports) >= 2 and imports[-1][1]:
+                    print('  Age: '+imports[-1][1])
             for line in reversed(r.stdout.splitlines()):
                 if 'state download in progress' in line:
                     st_pct = re.search(r'synced=([\d.]+%)', line)
