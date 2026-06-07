@@ -122,6 +122,25 @@ if syncing == False:
     block = h(block_num) if block_num else 0
     print('  Block: {:,}'.format(block))
     print('  Sync: 100%')
+    # Check for background tasks (snapshot, log index)
+    try:
+        r = subprocess.run(['docker','compose','logs','--tail','15','geth'],
+            capture_output=True, text=True, timeout=10)
+        import re
+        for line in reversed(r.stdout.splitlines()):
+            if 'Generating snapshot' in line:
+                eta = re.search(r'eta=(\S+)', line)
+                if eta:
+                    print('  Snapshot: generating  ETA: '+eta.group(1))
+                break
+        for line in reversed(r.stdout.splitlines()):
+            if 'Log index head rendering' in line:
+                remaining = re.search(r'remaining=([\d,]+)', line)
+                if remaining:
+                    print('  Log index: {:,} blocks remaining'.format(int(remaining.group(1).replace(',',''))))
+                break
+    except:
+        pass
 elif syncing:
     current = h(syncing.get('currentBlock','0x0'))
     highest = h(syncing.get('highestBlock','0x0'))
