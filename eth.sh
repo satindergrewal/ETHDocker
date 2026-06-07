@@ -130,7 +130,13 @@ elif syncing:
     bytecodes = h(syncing.get('syncedBytecodes','0x0'))
     healed = h(syncing.get('healedTrienodes','0x0'))
     healing = h(syncing.get('healingTrienodes','0x0'))
-    if highest > 0:
+    tx_remaining = h(syncing.get('txIndexRemainingBlocks','0x0'))
+    if highest > 0 and current >= highest:
+        print('  Block: {:,}'.format(current))
+        print('  Sync: 100%')
+        if tx_remaining > 0:
+            print('  TX index: {:,} blocks remaining'.format(tx_remaining))
+    elif highest > 0:
         pct = current/highest*100
         print('  Block: {:,} / {:,}'.format(current, highest))
         print('  Sync: {:.2f}%'.format(pct))
@@ -264,6 +270,26 @@ if lh_finality and 'data' in lh_finality:
     fin = lh_finality['data']
     epoch = fin.get('finalized',{}).get('epoch','?')
     print('  Finalized epoch: '+str(epoch))
+
+print()
+
+# === Ready status ===
+geth_synced = (syncing == False) or (syncing and highest > 0 and current >= highest)
+lh_synced = lh_sync and 'data' in lh_sync and int(lh_sync['data'].get('sync_distance','1')) <= 64
+el_online = lh_sync and 'data' in lh_sync and not lh_sync['data'].get('el_offline')
+
+if geth_synced and lh_synced and el_online:
+    print('READY — Node is fully synced and accepting connections')
+    print('  JSON-RPC:  http://127.0.0.1:8545')
+    print('  WebSocket: ws://127.0.0.1:8546')
+    print('  Beacon:    http://127.0.0.1:5052')
+    print('  Metamask:  http://127.0.0.1:8545  Chain ID: 1')
+else:
+    reasons = []
+    if not geth_synced: reasons.append('Geth syncing')
+    if not lh_synced: reasons.append('Lighthouse syncing')
+    if not el_online: reasons.append('Execution layer offline')
+    print('NOT READY — '+', '.join(reasons))
 
 print()
 
