@@ -391,11 +391,7 @@ if os.path.exists('.explorer-mode'):
         total_txs = stats.get('total_transactions','?')
         total_addrs = stats.get('total_addresses','?')
 
-        chain_head = 0
-        if current and current > 0:
-            chain_head = current
-        elif highest and highest > 0:
-            chain_head = highest
+        chain_head = h(block_num) if block_num else 0
 
         if chain_head > 0 and indexed_blocks > 0:
             pct = (indexed_blocks / chain_head) * 100
