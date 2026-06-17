@@ -387,10 +387,53 @@ if os.path.exists('.explorer-mode'):
         r = subprocess.run(['curl','-s','http://127.0.0.1:4001/api/v2/stats'],
             capture_output=True, text=True, timeout=5)
         stats = json.loads(r.stdout)
-        total_blocks = stats.get('total_blocks','?')
+        indexed_blocks = int(stats.get('total_blocks','0').replace(',',''))
         total_txs = stats.get('total_transactions','?')
         total_addrs = stats.get('total_addresses','?')
-        print('  Indexed blocks: {}'.format(total_blocks))
+
+        chain_head = 0
+        if current and current > 0:
+            chain_head = current
+        elif highest and highest > 0:
+            chain_head = highest
+
+        if chain_head > 0 and indexed_blocks > 0:
+            pct = (indexed_blocks / chain_head) * 100
+            remaining = chain_head - indexed_blocks
+            print('  Indexed blocks: {:,} / {:,}  ({:.2f}%)'.format(indexed_blocks, chain_head, pct))
+
+            progress_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.explorer-progress')
+            import time as _time
+            now_ts = _time.time()
+            prev_ts = None
+            prev_blocks = None
+            try:
+                with open(progress_file) as pf:
+                    parts = pf.read().strip().split(',')
+                    prev_ts = float(parts[0])
+                    prev_blocks = int(parts[1])
+            except:
+                pass
+            with open(progress_file, 'w') as pf:
+                pf.write('{},{}'.format(now_ts, indexed_blocks))
+
+            if prev_ts and prev_blocks and prev_blocks < indexed_blocks:
+                elapsed = now_ts - prev_ts
+                blocks_gained = indexed_blocks - prev_blocks
+                rate = blocks_gained / elapsed
+                eta_secs = remaining / rate
+                if eta_secs < 3600:
+                    eta_str = '{:.0f} minutes'.format(eta_secs / 60)
+                elif eta_secs < 86400:
+                    eta_str = '{:.1f} hours'.format(eta_secs / 3600)
+                else:
+                    eta_str = '{:.1f} days'.format(eta_secs / 86400)
+                print('  Rate: {:.0f} blocks/hr — ETA: {}'.format(rate * 3600, eta_str))
+            elif prev_ts and prev_blocks and prev_blocks >= indexed_blocks:
+                print('  Rate: stalled since last check')
+        else:
+            print('  Indexed blocks: {:,}'.format(indexed_blocks))
+
         print('  Transactions: {}'.format(total_txs))
         print('  Addresses: {}'.format(total_addrs))
         print('  Web UI: http://127.0.0.1:4000')
