@@ -170,7 +170,7 @@ elif syncing:
     healed = h(syncing.get('healedTrienodes','0x0'))
     healing = h(syncing.get('healingTrienodes','0x0'))
     tx_remaining = h(syncing.get('txIndexRemainingBlocks','0x0'))
-    if highest > 0 and current >= highest:
+    if highest > 0 and current >= highest - 128:
         print('  Block: {:,}'.format(current))
         print('  Sync: 100%')
         if tx_remaining > 0:
@@ -241,8 +241,9 @@ elif syncing:
                 if len(imports) >= 2:
                     from datetime import datetime
                     try:
-                        t0 = datetime.strptime(imports[0][1], '%m-%d|%H:%M:%S.%f')
-                        t1 = datetime.strptime(imports[-1][1], '%m-%d|%H:%M:%S.%f')
+                        yr = str(datetime.now().year)
+                        t0 = datetime.strptime(yr+'-'+imports[0][1], '%Y-%m-%d|%H:%M:%S.%f')
+                        t1 = datetime.strptime(yr+'-'+imports[-1][1], '%Y-%m-%d|%H:%M:%S.%f')
                         secs = (t1 - t0).total_seconds()
                         blocks_done = imports[-1][0] - imports[0][0]
                         if secs > 0 and blocks_done > 0:
@@ -379,10 +380,28 @@ if lh_finality and 'data' in lh_finality:
     epoch = fin.get('finalized',{}).get('epoch','?')
     print('  Finalized epoch: '+str(epoch))
 
+# === Explorer ===
+if os.path.exists('.explorer-mode'):
+    print('=== Blockscout (Explorer) ===')
+    try:
+        r = subprocess.run(['curl','-s','http://127.0.0.1:4001/api/v2/stats'],
+            capture_output=True, text=True, timeout=5)
+        stats = json.loads(r.stdout)
+        total_blocks = stats.get('total_blocks','?')
+        total_txs = stats.get('total_transactions','?')
+        total_addrs = stats.get('total_addresses','?')
+        print('  Indexed blocks: {}'.format(total_blocks))
+        print('  Transactions: {}'.format(total_txs))
+        print('  Addresses: {}'.format(total_addrs))
+        print('  Web UI: http://127.0.0.1:4000')
+    except:
+        print('  Status: not reachable')
+    print()
+
 print()
 
 # === Ready status ===
-geth_synced = (syncing == False) or (syncing and highest > 0 and current >= highest)
+geth_synced = (syncing == False) or (syncing and highest > 0 and current >= highest - 128)
 lh_synced = lh_sync and 'data' in lh_sync and int(lh_sync['data'].get('sync_distance','1')) <= 64
 el_online = lh_sync and 'data' in lh_sync and not lh_sync['data'].get('el_offline')
 

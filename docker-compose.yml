@@ -25,10 +25,10 @@ services:
       - "--maxpeers=${GETH_MAXPEERS:-50}"
       - "--cache=${GETH_CACHE:-4096}"
     ports:
-      # JSON-RPC for Metamask — localhost only
-      - "127.0.0.1:8545:8545"
-      # WebSocket RPC — localhost only
-      - "127.0.0.1:8546:8546"
+      # JSON-RPC for Metamask — LAN accessible
+      - "8545:8545"
+      # WebSocket RPC — LAN accessible
+      - "8546:8546"
     networks:
       - ethnet
 
@@ -85,10 +85,21 @@ services:
     restart: unless-stopped
     profiles:
       - explorer
+    shm_size: 1g
     environment:
       POSTGRES_DB: blockscout
       POSTGRES_USER: blockscout
       POSTGRES_PASSWORD: blockscout
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=512MB"
+      - "-c"
+      - "max_connections=300"
+      - "-c"
+      - "work_mem=32MB"
+      - "-c"
+      - "max_stack_depth=4MB"
     volumes:
       - ${EXPLORER_DB_DIR:-./data/explorer-db}:/var/lib/postgresql/data
     networks:
@@ -113,6 +124,7 @@ services:
       - explorer-db
       - explorer-redis
       - geth
+    command: ["/app/bin/blockscout", "start"]
     environment:
       DATABASE_URL: postgresql://blockscout:blockscout@explorer-db:5432/blockscout
       ETHEREUM_JSONRPC_VARIANT: geth
@@ -129,8 +141,44 @@ services:
       INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
       ECTO_USE_SSL: "false"
       CACHE_ADDRESS_WITH_BALANCES_UPDATE_INTERVAL: ""
+      API_V2_ENABLED: "true"
+      INDEXER_CATCHUP_BLOCKS_BATCH_SIZE: "5"
+      INDEXER_CATCHUP_BLOCKS_CONCURRENCY: "3"
+      TOKEN_INSTANCE_FETCHER_BATCH_SIZE: "1"
+      INDEXER_INTERNAL_TRANSACTIONS_BATCH_SIZE: "5"
+      INDEXER_INTERNAL_TRANSACTIONS_CONCURRENCY: "3"
+      POOL_SIZE: "50"
+      POOL_SIZE_API: "20"
     ports:
-      - "127.0.0.1:4000:4000"
+      - "4001:4000"
+    networks:
+      - ethnet
+
+  explorer-frontend:
+    image: ghcr.io/blockscout/frontend:latest
+    container_name: eth-explorer-frontend
+    restart: unless-stopped
+    profiles:
+      - explorer
+    depends_on:
+      - explorer
+    environment:
+      NEXT_PUBLIC_API_HOST: ${EXPLORER_HOST:-localhost}
+      NEXT_PUBLIC_API_PORT: "4001"
+      NEXT_PUBLIC_API_PROTOCOL: http
+      NEXT_PUBLIC_NETWORK_NAME: Ethereum
+      NEXT_PUBLIC_NETWORK_SHORT_NAME: ETH
+      NEXT_PUBLIC_NETWORK_ID: "1"
+      NEXT_PUBLIC_NETWORK_CURRENCY_NAME: Ether
+      NEXT_PUBLIC_NETWORK_CURRENCY_SYMBOL: ETH
+      NEXT_PUBLIC_NETWORK_CURRENCY_DECIMALS: "18"
+      NEXT_PUBLIC_API_BASE_PATH: /
+      NEXT_PUBLIC_APP_HOST: 0.0.0.0
+      NEXT_PUBLIC_APP_PORT: "3000"
+      NEXT_PUBLIC_HOMEPAGE_CHARTS: "['daily_txs']"
+      NEXT_PUBLIC_IS_TESTNET: "false"
+    ports:
+      - "4000:3000"
     networks:
       - ethnet
 
