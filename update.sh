@@ -12,12 +12,25 @@ set -euo pipefail
 COMPOSE_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$COMPOSE_DIR"
 
+# Match eth.sh's compose invocation: include the VPN overlay when active
+# (otherwise --remove-orphans below kills the vpn containers mid-update
+# while .vpn-mode still says ON) and enable optional profiles per flags
+if [ -f .vpn-mode ]; then
+    DC="docker compose -f docker-compose.yml -f docker-compose.vpn.yml"
+else
+    DC="docker compose"
+fi
+PROFILES=""
+[ -f .validator-mode ] && PROFILES="validator"
+[ -f .explorer-mode ] && PROFILES="${PROFILES:+$PROFILES,}explorer"
+[ -n "$PROFILES" ] && export COMPOSE_PROFILES="$PROFILES"
+
 echo "=== ETH Docker Stack Updater ==="
 echo ""
 
 # Show current state
 echo "Current containers:"
-docker compose ps
+$DC ps
 echo ""
 
 # Parse arguments
@@ -52,16 +65,16 @@ while [ $# -gt 0 ]; do
 done
 
 # Rebuild local images and recreate all containers
-echo "Rebuilding local images (Geth, Lighthouse, Tor) and recreating containers..."
+echo "Rebuilding local images (Geth, Lighthouse, vpn-proxy) and recreating containers..."
 echo "(Chain data is preserved — no re-sync)"
 echo ""
-docker compose build --no-cache
-docker compose up -d --remove-orphans
+$DC build --no-cache
+$DC up -d --remove-orphans
 echo ""
 
 # Show running status
 echo "=== Stack Status ==="
-docker compose ps
+$DC ps
 echo ""
 
 echo "Update complete. Monitor logs with:"

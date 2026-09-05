@@ -550,15 +550,20 @@ print(f'in: {inb}  out: {out}  total: {len(data)}')
                 [ -f .validator-mode ] && PROFILES="validator,$PROFILES"
                 export COMPOSE_PROFILES="$PROFILES"
                 echo "Starting Blockscout explorer..."
-                $DC up -d explorer-db explorer-redis explorer
+                $DC up -d explorer-db explorer-redis explorer explorer-frontend
                 echo "Explorer ON. Access at http://127.0.0.1:4000"
                 echo ""
                 echo "NOTE: Explorer works best with archive mode (GETH_SYNCMODE=full, GETH_GCMODE=archive)"
                 ;;
             off)
+                # Force the profile on so this works even if .explorer-mode is
+                # already gone but containers are still running (stale state)
+                PROFILES="explorer"
+                [ -f .validator-mode ] && PROFILES="validator,$PROFILES"
+                export COMPOSE_PROFILES="$PROFILES"
                 echo "Stopping explorer..."
-                $DC stop explorer explorer-redis explorer-db
-                $DC rm -f explorer explorer-redis explorer-db
+                $DC stop explorer-frontend explorer explorer-redis explorer-db
+                $DC rm -f explorer-frontend explorer explorer-redis explorer-db
                 rm -f .explorer-mode
                 echo "Explorer OFF."
                 ;;
@@ -602,8 +607,12 @@ print(f'in: {inb}  out: {out}  total: {len(data)}')
 
     # Stack
     up)         $DC up -d ;;
-    down)       $DC down ;;
-    nuke)       $DC down --rmi all ;;
+    # Force all optional profiles on teardown — flag files can be stale/missing
+    # while their containers still run, and down skips inactive-profile services.
+    # --remove-orphans catches out-of-file leftovers (e.g. vpn after a crashed
+    # toggle) that also pin the network.
+    down)       COMPOSE_PROFILES="validator,explorer" $DC down --remove-orphans ;;
+    nuke)       COMPOSE_PROFILES="validator,explorer" $DC down --rmi all --remove-orphans ;;
     status)     $DC ps ;;
     logs)       $DC logs -f ;;
     update)     shift; ./update.sh "$@" ;;

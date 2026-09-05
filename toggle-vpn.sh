@@ -19,6 +19,13 @@ if [ $# -ne 1 ] || [[ "$1" != "on" && "$1" != "off" ]]; then
     exit 1
 fi
 
+# Match eth.sh: honor optional-profile flags so explorer/validator
+# containers are included in the up below
+PROFILES=""
+[ -f .validator-mode ] && PROFILES="validator"
+[ -f .explorer-mode ] && PROFILES="${PROFILES:+$PROFILES,}explorer"
+[ -n "$PROFILES" ] && export COMPOSE_PROFILES="$PROFILES"
+
 if [ "$1" = "on" ]; then
     if [ ! -f vpn/wg0.conf ]; then
         echo "Error: vpn/wg0.conf not found."
@@ -27,19 +34,22 @@ if [ "$1" = "on" ]; then
     fi
 
     echo "Enabling VPN mode..."
-    touch .vpn-mode
 
-    docker compose -f docker-compose.yml -f docker-compose.vpn.yml down
+    # Force all optional profiles on teardown — flag files can be stale.
+    # Flip .vpn-mode only after the toggle succeeds so a failure doesn't
+    # leave the flag lying about the actual network topology.
+    COMPOSE_PROFILES="validator,explorer" docker compose -f docker-compose.yml -f docker-compose.vpn.yml down
     docker compose -f docker-compose.yml -f docker-compose.vpn.yml up -d
+    touch .vpn-mode
 
     echo "VPN ON — all traffic routed through WireGuard."
 
 else
     echo "Disabling VPN mode..."
-    rm -f .vpn-mode
 
-    docker compose -f docker-compose.yml -f docker-compose.vpn.yml down
+    COMPOSE_PROFILES="validator,explorer" docker compose -f docker-compose.yml -f docker-compose.vpn.yml down
     docker compose up -d
+    rm -f .vpn-mode
 
     echo "VPN OFF — direct internet."
 fi
